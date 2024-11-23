@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+  push:
+    branches: [ "main" ]
+
+concurrency:
+  group: ${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  # This workflow contains a single job called "build"
+  build:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+    environment: fluentdtest
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - name: checkout  
+        uses: actions/checkout@v4
+      - run: docker build --no-cache -t $ACR_NAME.azureacr.io/fluentd:latest .
+      - name: Aws Login
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ vars.AWS_REGION}}
+          role-to-assume: ${{  secrets.AWS_ROLE }}
+          role-session-name: github-oids-aws-docker
+      - name: ACR auth
+        run: az acr login -n $ACR_NAME
+      - name: push and redeploy
+        run: docker push $ACR_NAME.azureacr.io/fluentd:latest
